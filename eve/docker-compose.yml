@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: eve-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: EVE
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: eve-app
+    restart: always
+    ports:
+      - "9090:9090"
+      - "8080:9090"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/EVE
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: root
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
