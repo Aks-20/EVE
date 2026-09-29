@@ -1,891 +1,296 @@
-# EVE Healthcare — Backend Engineering Assignment
+# EVE Healthcare API
 
-A production-oriented REST API for diagnostic centre management, test booking, and simulated payment processing.
+A Spring Boot REST API for diagnostic centres, diagnostic tests, appointment bookings, and simulated payment processing.
 
-The application is built using Spring Boot, Java, PostgreSQL, Spring Data JPA, Spring Security, JWT authentication, and Flyway database migrations.
+## Features
 
+- User signup and login with BCrypt password hashing
+- JWT authentication and role-based authorization (`USER` and `ADMIN`)
+- Optional environment-configured initial administrator
+- Diagnostic centre and test management, including centre-specific pricing
+- Booking creation, ownership checks, cancellation, and appointment validation
+- Simulated payment processing
+- PostgreSQL persistence and Flyway migrations
+- OpenAPI documentation, request validation, and health endpoints
 
+## Technology
 
-## 1. Features
+| Component | Technology |
+| --- | --- |
+| Language | Java 21 |
+| Framework | Spring Boot 4 |
+| Persistence | Spring Data JPA, Hibernate |
+| Database | PostgreSQL |
+| Migrations | Flyway |
+| Security | Spring Security, JWT, BCrypt |
+| API docs | Springdoc OpenAPI / Swagger UI |
+| Build and tests | Maven, JUnit |
+| Containers | Docker, Docker Compose |
 
-### Authentication
-
-* User signup
-* User login
-* BCrypt password hashing
-* JWT-based authentication
-* Current-user endpoint
-* Request validation
-* Unauthorized request handling
-
-### Diagnostic Centres
-
-* Create diagnostic centre
-* List diagnostic centres
-* Get diagnostic centre by ID
-* Associate diagnostic tests with centres
-* Configure test-specific pricing
-
-### Diagnostic Tests
-
-* Create diagnostic test
-* List diagnostic tests
-* Test description support
-
-### Bookings
-
-* Authenticated users can create bookings
-* Appointment date/time validation
-* Booking automatically captures the centre-test price
-* Booking ownership validation
-* Booking status management
-* Booking cancellation
-* Users can view only their own bookings
-
-### Payments
-
-* Simulated payment processing
-* SUCCESS / FAILED payment states
-* Payment amount comes from booking
-* Booking status automatically updated after payment
-* Payment ownership validation
-
-### Payment Webhooks
-
-* Webhook endpoint
-* Event ID based idempotency
-* Duplicate webhook protection
-* Database-level unique constraints
-* Payment and booking consistency validation
-
-### Engineering
-
-* Global exception handling
-* Bean Validation
-* PostgreSQL
-* Flyway migrations
-* Transaction management
-* Pessimistic locking for payment/booking operations
-* Docker support
-* Docker Compose
-* OpenAPI / Swagger
-* Actuator health endpoint
-* Structured API responses
-
----
-
-## 2. Technology Stack
-
-| Technology      | Purpose                        |
-| --------------- | ------------------------------ |
-| Java 21         | Backend language               |
-| Spring Boot     | Application framework          |
-| Spring Web      | REST APIs                      |
-| Spring Data JPA | Persistence                    |
-| Hibernate       | ORM                            |
-| PostgreSQL      | Database                       |
-| Flyway          | Database migrations            |
-| Spring Security | Authentication & authorization |
-| JWT             | Stateless authentication       |
-| BCrypt          | Password hashing               |
-| Maven           | Build management               |
-| Docker          | Containerization               |
-| Swagger/OpenAPI | API documentation              |
-| JUnit           | Testing                        |
-
-
-
-
-## 3. Architecture
-
-The application follows a layered architecture:
+## Architecture
 
 ```text
-Controller
-    ↓
-Service
-    ↓
-Repository
-    ↓
-PostgreSQL
+HTTP request
+    -> Controller
+    -> Service
+    -> Repository
+    -> PostgreSQL
 ```
 
-Authentication:
+Protected requests carry a JWT. The JWT filter loads the current user and grants authorities from the user's persisted role. Booking and payment services enforce ownership rules in addition to authentication.
+
+## Project Structure
 
 ```text
-Client
-  ↓
-JWT
-  ↓
-Spring Security Filter
-  ↓
-Authenticated User
-  ↓
-Controller
+src/main/java/com/eve/eve/
+├── common/       Shared API response and exception handling
+├── config/       Security, JWT, Jackson, and OpenAPI configuration
+├── controller/   REST endpoints
+├── dto/          Request and response records
+├── entity/       JPA entities and enums
+├── repository/   Spring Data repositories
+└── service/      Application and business logic
+
+src/main/resources/
+├── application.properties
+└── db/migration/ Flyway SQL migrations
 ```
 
-Payment flow:
+## Prerequisites
 
-```text
-Booking
-   ↓
-Payment Request
-   ↓
-Payment Service
-   ↓
-Simulated Payment Provider
-   ↓
-SUCCESS / FAILED
-   ↓
-Payment + Booking Status
-```
+- Java 21
+- PostgreSQL, or Docker with Docker Compose
 
-Webhook flow:
-
-```text
-Payment Provider
-       ↓
-POST /api/payments/webhook
-       ↓
-Validate webhook secret
-       ↓
-Insert event using event_id
-       ↓
-Duplicate?
-   ├── YES → Ignore
-   └── NO
-        ↓
-     Process payment
-        ↓
-     Update booking
-```
-
----
-
-## 4. Project Structure
-
-```text
-src/main/java/com/evehealthcare
-│
-├── auth
-│   ├── controller
-│   ├── dto
-│   ├── entity
-│   ├── repository
-│   └── service
-│
-├── centre
-│   ├── controller
-│   ├── dto
-│   ├── entity
-│   ├── repository
-│   └── service
-│
-├── test
-│   ├── controller
-│   ├── dto
-│   ├── entity
-│   ├── repository
-│   └── service
-│
-├── booking
-│   ├── controller
-│   ├── dto
-│   ├── entity
-│   ├── repository
-│   └── service
-│
-├── payment
-│   ├── controller
-│   ├── dto
-│   ├── entity
-│   ├── repository
-│   └── service
-│
-├── security
-│   ├── JwtAuthenticationFilter
-│   ├── JwtService
-│   └── SecurityConfig
-│
-└── common
-    ├── exception
-    └── response
-```
-
----
-
-## 5. Database Schema
-
-Main entities:
-
-```text
-users
-  │
-  │
-  └──── bookings
-             │
-             │
-             └──── centre_tests
-                       │
-                ┌──────┴──────┐
-                ↓             ↓
-       diagnostic_centres   diagnostic_tests
-
-
-bookings
-   │
-   └──── payments
-
-
-webhook_events
-```
-
-### Tables
-
-#### users
-
-```text
-id
-name
-email
-password_hash
-role
-created_at
-```
-
-#### diagnostic_centres
-
-```text
-id
-name
-location
-created_at
-```
-
-#### diagnostic_tests
-
-```text
-id
-name
-description
-created_at
-```
-
-#### centre_tests
-
-```text
-id
-centre_id
-test_id
-price
-```
-
-A unique constraint on:
-
-```text
-(centre_id, test_id)
-```
-
-prevents duplicate test mappings.
-
-#### bookings
-
-```text
-id
-user_id
-centre_test_id
-appointment_at
-amount
-status
-created_at
-```
-
-The booking amount is copied from `centre_tests.price` when the booking is created.
-
-This prevents later price changes from changing an existing booking amount.
-
-#### payments
-
-```text
-id
-booking_id
-provider_payment_id
-amount
-status
-created_at
-```
-
-`booking_id` is unique so one booking cannot have multiple payment records.
-
-#### webhook_events
-
-```text
-id
-event_id
-event_type
-payload
-processed_at
-```
-
-`event_id` is unique and provides database-level idempotency.
-
----
-
-## 6. Booking State Machine
-
-```text
-             ┌─────────────┐
-             │   PENDING   │
-             └──────┬──────┘
-                    │
-          ┌─────────┴─────────┐
-          ↓                   ↓
-     CONFIRMED              FAILED
-          ↑
-          │
-      SUCCESS
-
-PENDING
-   │
-   ↓
-CANCELLED
-```
-
-Only valid state transitions are allowed.
-
----
-
-## 7. Configuration
-
-Create PostgreSQL database:
+The default local configuration uses port `9090` and PostgreSQL at `localhost:5432`, database `EVE`, username `postgres`, and password `root`. Create the database before starting the application if it does not already exist:
 
 ```sql
-CREATE DATABASE eve_healthcare;
+CREATE DATABASE "EVE";
 ```
 
-Configure:
+These are development defaults. Override database credentials and secrets for any shared or production environment.
 
-```properties
-spring.application.name=eve-healthcare
-server.port=8080
+## Run Locally
 
-spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/eve_healthcare}
-spring.datasource.username=${DB_USERNAME:postgres}
-spring.datasource.password=${DB_PASSWORD:postgres}
+From the repository root, use the Maven wrapper:
 
-spring.jpa.hibernate.ddl-auto=validate
-spring.jpa.open-in-view=false
-spring.jpa.show-sql=false
-spring.jpa.properties.hibernate.format_sql=true
-
-spring.flyway.enabled=true
-spring.flyway.locations=classpath:db/migration
-
-jwt.secret=${JWT_SECRET:change-this-to-a-long-secret-key}
-jwt.expiration=${JWT_EXPIRATION:3600000}
-
-webhook.secret=${WEBHOOK_SECRET:local-webhook-secret}
-
-management.endpoints.web.exposure.include=health,info
+```powershell
+.\mvnw.cmd test
+.\mvnw.cmd spring-boot:run
 ```
 
-For production, secrets should be supplied through environment variables or a secret manager.
+The application listens at `http://localhost:9090`.
+Swagger UI is available at `http://localhost:9090/swagger-ui/index.html`.
 
----
+## Configure an Initial Admin
 
-## 8. Running Locally
+Signup always creates a `USER`; it does not accept a role from the request. To create the initial admin, set all three variables before starting the application:
 
-### Clone
-
-```bash
-git clone <repository-url>
-
-cd eve-healthcare
+```powershell
+$env:ADMIN_NAME = "EVE Admin"
+$env:ADMIN_EMAIL = "admin@example.com"
+$env:ADMIN_PASSWORD = "12345689"
+.\mvnw.cmd spring-boot:run
 ```
 
-### Build
+The app creates that account with the `ADMIN` role. If the email already exists, it promotes the account only when the configured password matches the existing password. Partial configuration or a password mismatch stops startup with an error. Leave all three variables unset to disable admin bootstrap.
 
-```bash
-mvn clean install
-```
+In Docker Compose, pass the `ADMIN_NAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` variables to the `app` service's `environment` section if an admin account is required.
 
-### Run tests
+## Authentication and Authorization
 
-```bash
-mvn test
-```
+1. Sign up a regular user with `POST /api/auth/signup`, or configure the initial admin as above.
+2. Log in with `POST /api/auth/login`.
+3. Copy `accessToken` from the response.
+4. For protected endpoints, send `Authorization: Bearer <accessToken>`.
 
-### Run application
+Read-only centre endpoints are public. Creating centres, tests, and centre-test price mappings requires `ADMIN`. Booking and payment endpoints require an authenticated user and apply ownership checks.
 
-```bash
-mvn spring-boot:run
-```
+Unauthenticated protected requests return `401 Unauthorized`. An authenticated user without the required role receives `403 Forbidden`.
 
-Application:
+## API Endpoints
 
-```text
-http://localhost:9090
-```
+| Method | Endpoint | Access |
+| --- | --- | --- |
+| `POST` | `/api/auth/signup` | Public |
+| `POST` | `/api/auth/login` | Public |
+| `GET` | `/api/auth/me` | Authenticated |
+| `GET` | `/api/centres` | Public |
+| `GET` | `/api/centres/{id}` | Public |
+| `POST` | `/api/centres` | Admin |
+| `POST` | `/api/centres/{centreId}/tests` | Admin |
+| `GET` | `/api/tests` | Authenticated |
+| `POST` | `/api/tests` | Admin |
+| `POST` | `/api/bookings` | Authenticated |
+| `GET` | `/api/bookings` | Authenticated; own bookings |
+| `GET` | `/api/bookings/{id}` | Authenticated; owner only |
+| `POST` | `/api/bookings/{id}/cancel` | Authenticated; owner only |
+| `POST` | `/api/payments` | Authenticated; booking owner |
+| `GET` | `/api/health` | Public |
+| `GET` | `/actuator/health` | Public |
 
----
+All routes are relative to `http://localhost:9090` when running locally.
 
-## 9. Running with Docker
+Diagnostic Centre
+      │
+      │ centre_id
+      ▼
+ CentreTest
+      ▲
+      │ test_id
+      │
+Diagnostic Test
 
-Build and start:
+CentreTest
+      │
+      │ centre_test_id
+      ▼
+   Booking
 
-```bash
-docker compose up --build
-```
+## Example API Flow
 
-Stop:
-
-```bash
-docker compose down
-```
-
-Application:
-
-```text
-http://localhost:9090
-```
-
-PostgreSQL:
-
-```text
-localhost:5432
-```
-
----
-
-## 10. API Documentation
-
-Swagger UI:
-
-```text
-http://localhost:9090/swagger-ui.html
-```
-
-OpenAPI documentation:
-
-```text
-http://localhost:9090/v3/api-docs
-```
-
----
-
-## 11. API Endpoints
-
-### Authentication
-
-| Method | Endpoint           | Authentication |
-| ------ | ------------------ | -------------- |
-| POST   | `/api/auth/signup` | Public         |
-| POST   | `/api/auth/login`  | Public         |
-| GET    | `/api/auth/me`     | JWT            |
-
-### Diagnostic Centres
-
-| Method | Endpoint                        | Authentication |
-| ------ | ------------------------------- | -------------- |
-| POST   | `/api/centres`                  | Admin          |
-| GET    | `/api/centres`                  | JWT            |
-| GET    | `/api/centres/{id}`             | JWT            |
-| POST   | `/api/centres/{centreId}/tests` | Admin          |
-
-### Diagnostic Tests
-
-| Method | Endpoint     | Authentication |
-| ------ | ------------ | -------------- |
-| POST   | `/api/tests` | Admin          |
-| GET    | `/api/tests` | JWT            |
-
-### Bookings
-
-| Method | Endpoint                    | Authentication |
-| ------ | --------------------------- | -------------- |
-| POST   | `/api/bookings`             | JWT            |
-| GET    | `/api/bookings`             | JWT            |
-| GET    | `/api/bookings/{id}`        | JWT            |
-| POST   | `/api/bookings/{id}/cancel` | JWT            |
-
-### Payments
-
-| Method | Endpoint                | Authentication |
-| ------ | ----------------------- | -------------- |
-| POST   | `/api/payments`         | JWT            |
-| POST   | `/api/payments/webhook` | Webhook Secret |
-
-### Health
-
-| Method | Endpoint           |
-| ------ | ------------------ |
-| GET    | `/api/health`      |
-| GET    | `/actuator/health` |
-
----
-
-## 12. Example API Flow
-
-### Step 1 — Signup
-
-```http
-POST /api/auth/signup
-```
-
-```json
-{
-  "name": "Akshat Gupta",
-  "email": "akshat@example.com",
-  "password": "Password@123"
-}
-```
-
-### Step 2 — Login
+### Login
 
 ```http
 POST /api/auth/login
-```
+Content-Type: application/json
 
-```json
 {
-  "email": "akshat@example.com",
-  "password": "Password@123"
+  "email": "admin@example.com",
+  "password": "12345689"
 }
 ```
 
-Copy the JWT token.
+Use the `accessToken` from the response as a Bearer token for admin operations.
 
-### Step 3 — Create Centre
+### Create a Diagnostic Centre
 
 ```http
 POST /api/centres
-Authorization: Bearer <TOKEN>
-```
+Authorization: Bearer <accessToken>
+Content-Type: application/json
 
-```json
 {
-  "name": "Apollo Diagnostics",
-  "location": "Gurugram"
+  "name": "Central Diagnostics",
+  "location": "Springfield"
 }
 ```
 
-### Step 4 — Create Test
+### Create a Diagnostic Test
 
 ```http
 POST /api/tests
-Authorization: Bearer <TOKEN>
-```
-
+Authorization: Bearer <accessToken>
+Content-Type: application/json
 
 {
   "name": "Complete Blood Count",
   "description": "CBC blood test"
 }
-
-
-### Step 5 — Configure Centre Test
-
-http
-POST /api/centres/1/tests
-Authorization: Bearer <TOKEN>
 ```
 
-json
+### Set the Centre's Test Price
+
+```http
+POST /api/centres/1/tests
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
 {
   "testId": 1,
   "price": 500.00
 }
+```
 
-### Step 6 — Create Booking
+### Create a Booking
 
-http
+```http
 POST /api/bookings
-Authorization: Bearer <TOKEN>
+Authorization: Bearer <userAccessToken>
+Content-Type: application/json
 
-
-json
 {
   "centreTestId": 1,
   "appointmentAt": "2026-10-05T10:30:00"
 }
+```
 
+The appointment must be in the future. The booking amount is copied from the centre-test price when the booking is created.
 
- Step 7 — Payment
+### Start Payment Processing
 
-http
+```http
 POST /api/payments
-Authorization: Bearer <TOKEN>
+Authorization: Bearer <userAccessToken>
+Content-Type: application/json
 
-
-json
 {
   "bookingId": 1
 }
+```
 
+## Database
 
- Step 8 — Webhook
+The main tables are `users`, `diagnostic_centres`, `diagnostic_tests`, `centre_tests`, `bookings`, and `payments`.
 
-http
-POST /api/payments/webhook
-X-Webhook-Secret: local-webhook-secret
+- A centre and diagnostic test are linked through `centre_tests`, which stores the centre-specific price.
+- A unique `(centre_id, test_id)` constraint prevents duplicate mappings.
+- A booking stores a snapshot of the price at booking time.
+- A booking has at most one payment record.
+- Flyway migrations are in `src/main/resources/db/migration`.
 
+## Configuration
 
+Configuration is in `src/main/resources/application.properties`. Important settings include:
 
-{
-  "eventId": "evt_001",
-  "eventType": "payment.success",
-  "paymentId": "pay_external_001",
-  "bookingId": 1,
-  "status": "SUCCESS"
-}
+| Setting | Environment variable | Current default |
+| --- | --- | --- |
+| HTTP port | `SERVER_PORT` | `9090` |
+| JWT signing key | `JWT_SECRET` | Development-only built-in key |
+| JWT lifetime | Not separately environment-configured | `3600000` ms |
+| Initial admin name | `ADMIN_NAME` | Disabled when unset |
+| Initial admin email | `ADMIN_EMAIL` | Disabled when unset |
+| Initial admin password | `ADMIN_PASSWORD` | Disabled when unset |
 
+The current datasource settings are defined directly in `application.properties`; adjust them there or override them with Spring datasource environment properties for your environment. Never use the development database password or default JWT key in production.
 
- 13. Edge Cases
+## Docker Compose
 
-The application handles:
+Build and start the app and PostgreSQL:
 
-* Invalid request body
-* Invalid email
-* Short passwords
-* Duplicate email
-* Missing resources
-* Invalid booking ID
-* Invalid centre ID
-* Invalid test ID
-* Duplicate centre-test mapping
-* Unauthorized booking access
-* Payment for another user's booking
-* Payment for non-existent booking
-* Payment for already processed booking
-* Payment for cancelled booking
-* Duplicate webhook events
-* Payment belonging to another booking
-* Database constraint violations
-* Invalid JWT
-* Missing JWT
-* Invalid webhook secret
+```powershell
+docker compose up --build
+```
 
+Stop the services:
 
+```powershell
+docker compose down
+```
 
-## 14. Idempotency
+The Compose configuration exposes the API on port `9090` and PostgreSQL on port `5432`. The database data is stored in a named Docker volume.
 
-Webhook idempotency is implemented using:
+## API Documentation and Health
 
+- Swagger UI: `http://localhost:9090/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:9090/v3/api-docs`
+- Application health: `http://localhost:9090/api/health`
+- Actuator health: `http://localhost:9090/actuator/health`
 
-event_id
+## Payment and Booking Behavior
 
-with a unique database constraint.
+- Payment processing is simulated; no external payment provider is connected.
+- Payment operations use transactions and lock booking records while updating state.
+- Appointment availability and calendar conflict checking are outside the current scope.
 
-The webhook insertion uses PostgreSQL:
+## Testing
 
-sql
-INSERT ...
-ON CONFLICT (event_id) DO NOTHING
+Run the test suite with the Maven wrapper:
 
+```powershell
+.\mvnw.cmd test
+```
 
-Therefore, if the same webhook is received multiple times:
+## Author
 
-
-First request
-     ↓
-event inserted
-     ↓
-payment processed
-
-
-Second request
-     ↓
-event already exists
-     ↓
-ignored
-
-
-This prevents duplicate payment processing.
-
-
-
-## 15. Concurrency Handling
-
-Booking/payment operations use database transactions.
-
-Payment and webhook processing lock the booking using:
-
-
-PESSIMISTIC_WRITE
-
-
-This prevents concurrent requests from simultaneously modifying the same booking state.
-
-Example:
-
-text
-Request A ──┐
-            │
-            ├── Booking #1 locked
-            │
-Request B ──┘
-                  ↓
-             waits for A
-                  ↓
-             sees new state
-
-
-
-
-## 16. Security
-
-Implemented security measures:
-
-* BCrypt password hashing
-* JWT authentication
-* Stateless sessions
-* Role-based authorization
-* Protected booking APIs
-* Ownership validation
-* Webhook secret validation
-* Input validation
-* No password returned through API responses
-* Database constraints
-* Environment-based secrets
-
----
-
-## 17. Testing
-
-Run:
-
-bash
-mvn test
-
-
-Important scenarios:
-
-
-Authentication
-✓ Signup
-✓ Duplicate signup
-✓ Login
-✓ Invalid credentials
-
-Centres / Tests
-✓ Create centre
-✓ Create test
-✓ Add test to centre
-✓ Duplicate centre-test mapping
-
-Bookings
-✓ Create booking
-✓ Price copied from centre-test
-✓ Get own bookings
-✓ Unauthorized booking access
-✓ Cancel pending booking
-✓ Cannot cancel confirmed booking
-
-Payments
-✓ Successful payment
-✓ Failed payment
-✓ Invalid booking
-✓ Unauthorized payment
-
-Webhooks
-✓ Successful webhook
-✓ Failed webhook
-✓ Duplicate webhook
-✓ Invalid booking
-✓ Payment/booking mismatch
-
- 18. Design Decisions
-
-Why `CentreTest`?
-
-A diagnostic test can be offered by multiple centres at different prices.
-
-Therefore:
-
-text
-DiagnosticTest
-      +
-DiagnosticCentre
-      ↓
-CentreTest
-      +
-Price
-
-
-Why store booking amount?
-
-The price of a test may change later.
-
-Example:
-
-text
-Today:
-CBC = ₹500
-
-Next month:
-CBC = ₹700
-
-
-An existing booking should remain:
-
-
-₹500
-
-
-Therefore the booking stores a snapshot of the price.
-
-
-
-
-
-
-V1__initial_schema.sql
-V2__add_user_role.sql
-V3__future_change.sql
-
-
-
-
- 19. Assumptions
-
-1. Payment processing is simulated because no real payment provider is required.
-2. Appointment availability/calendar conflict management is outside the assignment scope.
-3. A booking has one payment record.
-4. A centre-test combination is unique.
-5. Booking price is captured when the booking is created.
-6. Webhooks are trusted after webhook-secret validation.
-7. JWT access tokens are stateless.
-8. Centre and test management is restricted to administrators.
-9. PostgreSQL is the target production database.
-
-
-
-
-
-
-
-
-22. Health Check
-
-
-GET /api/health
-
-
-Expected:
-json
-{
-  "success": true,
-  "message": "Service is healthy",
-  "data": "EVE Healthcare API"
-}
-
-
-
-
-
-
-24. Author
-
-Akshat Gupta
-
-Backend Engineering Assignment — EVE Healthcare
+Akshat Gupta  
+Backend Engineering Assignment - EVE Healthcare

@@ -100,8 +100,7 @@ public class OpenApiConfig {
         return path.equals("/api/auth/signup")
                 || path.equals("/api/auth/login")
                 || path.equals("/api/health")
-                || path.equals("/actuator/health")
-                || path.equals("/api/payments/webhook");
+                || path.equals("/actuator/health");
     }
 
     private boolean isAdminPath(String path) {

@@ -5,14 +5,16 @@ package com.eve.eve.service;
 
 
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.eve.eve.common.Exception.BadRequestException;
+import com.eve.eve.common.Exception.ConflictException;
+import com.eve.eve.config.JwtService;
 import com.eve.eve.dto.LoginRequest;
 import com.eve.eve.dto.SignupRequest;
 import com.eve.eve.entity.User;
 import com.eve.eve.repository.UserRepository;
-import com.eve.eve.config.JwtService;
-
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
 
 @Service
 public class AuthService {
@@ -31,30 +33,35 @@ public class AuthService {
         this.jwtService = jwtService;
     }
 
-    public User signup(
-            SignupRequest request
-    ) {
+   public User signup(SignupRequest request) {
 
-        if (userRepository.existsByEmail(
-                request.email()
-        )) {
+    System.out.println("A. Checking email");
 
-            throw new IllegalArgumentException(
-                    "Email already registered"
-            );
-        }
-
-        User user = new User(
-                request.name(),
-                request.email(),
-                passwordEncoder.encode(
-                        request.password()
-                )
-        );
-
-        return userRepository.save(user);
+    if (userRepository.existsByEmail(request.email())) {
+        throw new ConflictException("Email already registered");
     }
 
+    System.out.println("B. Email available");
+
+    String encodedPassword =
+            passwordEncoder.encode(request.password());
+
+    System.out.println("C. Password encoded");
+
+    User user = new User(
+            request.name(),
+            request.email(),
+            encodedPassword
+    );
+
+    System.out.println("D. User entity created");
+
+    User savedUser = userRepository.save(user);
+
+    System.out.println("E. User saved with ID: " + savedUser.getId());
+
+    return savedUser;
+}
     public String login(
             LoginRequest request
     ) {
@@ -62,7 +69,7 @@ public class AuthService {
         User user = userRepository
                 .findByEmail(request.email())
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new BadRequestException(
                                 "Invalid email or password"
                         )
                 );
@@ -72,7 +79,7 @@ public class AuthService {
                 user.getPasswordHash()
         )) {
 
-            throw new IllegalArgumentException(
+            throw new BadRequestException(
                     "Invalid email or password"
             );
         }

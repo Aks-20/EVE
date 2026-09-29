@@ -2,7 +2,10 @@ package com.eve.eve.common.Exception;
 
 
 
-import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,9 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -77,18 +78,20 @@ public class GlobalExceptionHandler {
         );
     }
 
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ErrorResponse> handleDatabaseConflict(
-            DataIntegrityViolationException ex,
-            HttpServletRequest request) {
+   @ExceptionHandler(DataIntegrityViolationException.class)
+public ResponseEntity<ErrorResponse> handleDatabaseConflict(
+        DataIntegrityViolationException ex,
+        HttpServletRequest request) {
 
-        return build(
-                HttpStatus.CONFLICT,
-                "Database constraint violation",
-                request.getRequestURI(),
-                null
-        );
-    }
+    ex.printStackTrace();
+
+    return build(
+            HttpStatus.CONFLICT,
+            ex.getMostSpecificCause().getMessage(),
+            request.getRequestURI(),
+            null
+    );
+}
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(
@@ -103,18 +106,20 @@ public class GlobalExceptionHandler {
         );
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneric(
-            Exception ex,
-            HttpServletRequest request) {
+   @ExceptionHandler(Exception.class)
+public ResponseEntity<ErrorResponse> handleGeneric(
+        Exception ex,
+        HttpServletRequest request) {
 
-        return build(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "An unexpected error occurred",
-                request.getRequestURI(),
-                null
-        );
-    }
+    ex.printStackTrace();
+
+    return build(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            ex.getMessage(),
+            request.getRequestURI(),
+            null
+    );
+}
 
     private ResponseEntity<ErrorResponse> build(
             HttpStatus status,
